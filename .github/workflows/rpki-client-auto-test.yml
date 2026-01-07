@@ -17,6 +17,8 @@ jobs:
       should_run: ${{ steps.diff.outputs.should_run }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          clean: false
 
       - name: Get latest rpki-client-portable release tag
         id: latest
@@ -52,6 +54,8 @@ jobs:
     runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
+        with:
+          clean: false
 
       - name: Build docker image for latest version
         run: |
