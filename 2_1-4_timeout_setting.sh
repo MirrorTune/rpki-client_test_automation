@@ -72,7 +72,7 @@ if grep -qi 'timeout' "${RPKI_LOG_FILE}"; then
   pass "ログ内でタイムアウトを示す記録を確認しました"
 
   info "該当ログ:"
-  grep -ni 'timeout' "${RPKI_LOG_FILE}" | head -n 5 | while IFS= read -r line; do
+  grep -ni -m 5 'timeout' "${RPKI_LOG_FILE}" | while IFS= read -r line; do
     info "${line}"
   done
 else

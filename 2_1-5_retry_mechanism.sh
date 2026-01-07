@@ -68,7 +68,7 @@ if grep -q 'fallback to rsync' "${RPKI_LOG_FILE}" || \
   pass "ログ内で取得失敗後のフォールバック（RRDP→rsync または rsync→cache）を示す記録を確認しました"
 
   info "該当ログ:"
-  grep -niE 'fallback to (rsync|cache)' "${RPKI_LOG_FILE}" | head -n 5 | while IFS= read -r line; do
+  grep -niE -m 5 'fallback to (rsync|cache)' "${RPKI_LOG_FILE}" | while IFS= read -r line; do
     info "${line}"
   done
 else

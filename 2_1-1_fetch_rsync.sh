@@ -65,7 +65,7 @@ if grep -q 'rsync://' "${RPKI_LOG_FILE}"; then
   pass "ログ内で rsync による取得を示す記録を確認しました"
 
   info "該当ログ:"
-  grep -n 'rsync://' "${RPKI_LOG_FILE}" | head -n 5 | while IFS= read -r line; do
+  grep -n -m 5 'rsync://' "${RPKI_LOG_FILE}" | while IFS= read -r line; do
     info "${line}"
   done
 else
