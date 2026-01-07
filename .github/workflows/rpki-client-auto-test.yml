@@ -2,7 +2,7 @@ name: rpki-client auto regression
 
 on:
   schedule:
-    - cron: "0 */6 * * *"   # 6時間ごと（UTC）
+    - cron: "0 */6 * * *"
   workflow_dispatch:
 
 permissions:
@@ -49,7 +49,7 @@ jobs:
   test:
     needs: check
     if: needs.check.outputs.should_run == 'true'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     steps:
       - uses: actions/checkout@v4
 
@@ -57,18 +57,39 @@ jobs:
         run: |
           set -euo pipefail
           VERSION="${{ needs.check.outputs.latest }}"
-          docker build --build-arg RPKI_CLIENT_VERSION="$VERSION" -t rpki-client-test:"$VERSION" .
+          docker build --build-arg RPKI_CLIENT_VERSION="$VERSION" -t rpki-client-test:latest .
 
-      - name: Run all container wrapper scripts
+      - name: Run all container wrapper scripts (ordered)
         run: |
           set -euo pipefail
           VERSION="${{ needs.check.outputs.latest }}"
+
           mkdir -p logs
           echo "[INFO] Testing rpki-client version: $VERSION" | tee logs/00_version.txt
-          for f in $(ls -1 run_*_in_container.sh | sort); do
-            echo "========== $f ==========" | tee -a logs/00_runner.txt
-            bash "$f" 2>&1 | tee "logs/${f}.log"
-          done
+
+          mapfile -t files < <(ls -1 run_*_in_container.sh)
+
+          for f in "${files[@]}"; do
+            bn="$(basename "$f")"
+            num="$(printf '%s' "$bn" | sed -n 's/^run_\([0-9]\+\)_\([0-9]\+\)-\([0-9]\+\).*$/\1.\2-\3/p')"
+            if [ -z "$num" ]; then
+              echo "[FAIL] 想定外のファイル名です（run_X_Y-Z_... を期待）: $bn" | tee -a logs/00_runner.txt
+              exit 1
+            fi
+            echo "$num $f"
+          done \
+          | awk '
+              {
+                split($1, a, /[.-]/);
+                printf "%03d %03d %03d %s\n", a[1], a[2], a[3], $2
+              }
+            ' \
+          | sort \
+          | awk '{print $4}' \
+          | while read -r f; do
+              echo "========== $f ==========" | tee -a logs/00_runner.txt
+              bash "$f" 2>&1 | tee "logs/${f}.log"
+            done
 
       - name: Upload logs as artifact
         uses: actions/upload-artifact@v4
