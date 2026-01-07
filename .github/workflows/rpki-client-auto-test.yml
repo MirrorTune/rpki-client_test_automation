@@ -88,7 +88,15 @@ jobs:
           | awk '{print $4}' \
           | while read -r f; do
               echo "========== $f ==========" | tee -a logs/00_runner.txt
+
+              set +o pipefail
               bash "$f" 2>&1 | tee "logs/${f}.log"
+              rc=${PIPESTATUS[0]}
+              set -o pipefail
+
+              if [ "$rc" -ne 0 ]; then
+                exit "$rc"
+              fi
             done
 
       - name: Upload logs as artifact
