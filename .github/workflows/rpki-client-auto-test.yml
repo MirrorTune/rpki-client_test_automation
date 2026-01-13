@@ -1,136 +1,118 @@
 name: rpki-client auto regression
 
 on:
+  workflow_dispatch:
   schedule:
     - cron: "0 */6 * * *"
-  workflow_dispatch:
 
 permissions:
   contents: write
   pull-requests: write
 
 jobs:
-  check:
-    runs-on: self-hosted
-    outputs:
-      latest: ${{ steps.latest.outputs.latest }}
-      should_run: ${{ steps.diff.outputs.should_run }}
+  auto-test:
+    runs-on: ubuntu-latest
+
     steps:
-      - name: Pre-clean workspace (fix permission issues from previous runs)
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies (jq, python3)
         run: |
           set -euo pipefail
-          if command -v sudo >/dev/null 2>&1; then
-            sudo chown -R "$(id -u)":"$(id -g)" "$GITHUB_WORKSPACE" 2>/dev/null || true
-          fi
-          rm -rf "$GITHUB_WORKSPACE"/* "$GITHUB_WORKSPACE"/.[!.]* "$GITHUB_WORKSPACE"/..?* 2>/dev/null || true
+          sudo apt-get update
+          sudo apt-get install -y jq python3
 
-      - uses: actions/checkout@v4
-
-      - name: Get latest rpki-client-portable release tag
+      - name: Get latest rpki-client-portable release tag (Releases/latest)
         id: latest
         run: |
           set -euo pipefail
-          python3 - <<'PY' >> "$GITHUB_OUTPUT"
-          import json, urllib.request
-          url = "https://api.github.com/repos/rpki-client/rpki-client-portable/releases/latest"
-          data = json.loads(urllib.request.urlopen(url).read().decode("utf-8"))
-          tag = data["tag_name"].strip()
-          if tag.startswith("v"):
-            tag = tag[1:]
-          print(f"latest={tag}")
-          PY
+          LATEST="$(curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/rpki-client/rpki-client-portable/releases/latest" \
+            | jq -r '.tag_name')"
+          LATEST="${LATEST#v}"
+          echo "latest=${LATEST}" >> "$GITHUB_OUTPUT"
 
-      - name: Compare with LAST_TESTED_VERSION
+      - name: Read LAST_TESTED_VERSION
+        id: last
+        run: |
+          set -euo pipefail
+          if [[ -f LAST_TESTED_VERSION ]]; then
+            LAST="$(tr -d ' \t\r\n' < LAST_TESTED_VERSION)"
+          else
+            LAST=""
+          fi
+          echo "last=${LAST}" >> "$GITHUB_OUTPUT"
+
+      - name: Decide whether to run tests
         id: diff
         run: |
           set -euo pipefail
           LATEST="${{ steps.latest.outputs.latest }}"
-          LAST="$(tr -d '\r\n' < LAST_TESTED_VERSION 2>/dev/null || true)"
-          echo "latest=$LATEST"
-          echo "last=$LAST"
-          if [ -z "$LAST" ] || [ "$LATEST" != "$LAST" ]; then
-            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          LAST="${{ steps.last.outputs.last }}"
+          if [[ -n "$LAST" && "$LATEST" == "$LAST" ]]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "[INFO] No new release. latest=$LATEST last=$LAST"
           else
-            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            echo "[INFO] New release detected. latest=$LATEST last=$LAST"
           fi
 
-  test:
-    needs: check
-    if: needs.check.outputs.should_run == 'true'
-    runs-on: self-hosted
-    steps:
-      - name: Pre-clean workspace (fix permission issues from previous runs)
+      - name: Build Docker image (rpki-client-portable = latest)
+        if: steps.diff.outputs.run == 'true'
         run: |
           set -euo pipefail
-          if command -v sudo >/dev/null 2>&1; then
-            sudo chown -R "$(id -u)":"$(id -g)" "$GITHUB_WORKSPACE" 2>/dev/null || true
-          fi
-          rm -rf "$GITHUB_WORKSPACE"/* "$GITHUB_WORKSPACE"/.[!.]* "$GITHUB_WORKSPACE"/..?* 2>/dev/null || true
+          docker build \
+            --build-arg "RPKI_CLIENT_VERSION=${{ steps.latest.outputs.latest }}" \
+            -t rpki-client-test:latest .
 
-      - uses: actions/checkout@v4
-
-      - name: Build docker image for latest version
+      - name: Run all run_*_in_container.sh in numeric order
+        if: steps.diff.outputs.run == 'true'
         run: |
           set -euo pipefail
-          VERSION="${{ needs.check.outputs.latest }}"
-          docker build --build-arg RPKI_CLIENT_VERSION="$VERSION" -t rpki-client-test:latest .
-
-      - name: Run all container wrapper scripts (ordered)
-        run: |
-          set -euo pipefail
-          VERSION="${{ needs.check.outputs.latest }}"
-
           mkdir -p logs
-          echo "[INFO] Testing rpki-client version: $VERSION" | tee logs/00_version.txt
 
-          mapfile -t files < <(ls -1 run_*_in_container.sh)
-
-          for f in "${files[@]}"; do
-            bn="$(basename "$f")"
-            num="$(printf '%s' "$bn" | sed -n 's/^run_\([0-9]\+\)_\([0-9]\+\)-\([0-9]\+\).*$/\1.\2-\3/p')"
-            if [ -z "$num" ]; then
-              echo "[FAIL] 想定外のファイル名です（run_X_Y-Z_... を期待）: $bn" | tee -a logs/00_runner.txt
-              exit 1
-            fi
-            echo "$num $f"
-          done \
-          | awk '
-              {
-                split($1, a, /[.-]/);
-                printf "%03d %03d %03d %s\n", a[1], a[2], a[3], $2
-              }
-            ' \
-          | sort \
-          | awk '{print $4}' \
+          python3 - << 'PY'
+          import glob, re
+          files = glob.glob("run_*_in_container.sh")
+          def key(p):
+            m = re.search(r'run_(\d+)_(\d+)-(\d+)_in_container\.sh$', p)
+            if not m:
+              return (10**9, 10**9, 10**9, p)
+            return (int(m.group(1)), int(m.group(2)), int(m.group(3)), p)
+          for f in sorted(files, key=key):
+            print(f)
+          PY
           | while read -r f; do
-              echo "========== $f ==========" | tee -a logs/00_runner.txt
-
-              set +o pipefail
-              bash "$f" 2>&1 | tee "logs/${f}.log"
-              rc=${PIPESTATUS[0]}
-              set -o pipefail
-
-              if [ "$rc" -ne 0 ]; then
-                exit "$rc"
-              fi
+              echo "[INFO] Running: $f"
+              bash "$f" | tee "logs/${f%.sh}.log"
             done
 
       - name: Upload logs as artifact
+        if: steps.diff.outputs.run == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: rpki-client-test-logs-${{ needs.check.outputs.latest }}
+          name: rpki-client-test-logs_${{ steps.latest.outputs.latest }}
           path: logs/
 
-      - name: Update LAST_TESTED_VERSION
+      - name: Update LAST_TESTED_VERSION (working tree)
+        if: steps.diff.outputs.run == 'true'
         run: |
           set -euo pipefail
-          echo "${{ needs.check.outputs.latest }}" > LAST_TESTED_VERSION
+          echo "${{ steps.latest.outputs.latest }}" > LAST_TESTED_VERSION
 
-      - name: Create PR for LAST_TESTED_VERSION update
+      - name: Create PR to update LAST_TESTED_VERSION
+        if: steps.diff.outputs.run == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
-          commit-message: "chore: update LAST_TESTED_VERSION to ${{ needs.check.outputs.latest }}"
-          title: "chore: tested rpki-client ${{ needs.check.outputs.latest }}"
-          body: "Automated update after running the regression suite."
-          branch: ci/update-last-tested-version
+          commit-message: "Update LAST_TESTED_VERSION to ${{ steps.latest.outputs.latest }}"
+          title: "Update LAST_TESTED_VERSION to ${{ steps.latest.outputs.latest }}"
+          body: |
+            Automated regression test completed for rpki-client-portable ${{ steps.latest.outputs.latest }}.
+            This PR updates LAST_TESTED_VERSION to record that this version has been tested.
+          branch: "ci/update-last-tested-version"
+          delete-branch: true
+          add-paths: |
+            LAST_TESTED_VERSION
 
