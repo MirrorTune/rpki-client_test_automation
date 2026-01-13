@@ -74,7 +74,7 @@ for d in "${CANDIDATES[@]}"; do
 done
 
 if [ ${#VALID_DIRS[@]} -eq 0 ]; then
-  info "/etc および /usr 配下から .tal ファイルを探索します…"
+  info "/etc および /usr 配下から .tal ファイルを探索します"
   mapfile -t FOUND_BY_FIND < <(
     find /etc /usr -maxdepth 5 -type f -name '*.tal' 2>/dev/null \
       | xargs -r -n1 dirname \
@@ -137,7 +137,7 @@ fi
 
 if [ "${#CER_FILES[@]}" -eq 0 ]; then
   info "キャッシュ配下に .cer が見つかりませんでした: ${RPKI_CACHE_DIR}"
-  info "rpki-client を実行し、キャッシュを生成します…"
+  info "rpki-client を実行し、キャッシュを生成します"
 
   WARMUP_LOG="${RPKI_ARTIFACT_DIR}/cache_warmup.log"
 
@@ -273,7 +273,7 @@ pick_cert_for_tal() {
 }
 
 validate_one() {
-  local ta_label="$1"     # afrinic/apnic/...
+  local ta_label="$1"
   local tal_file="$2"
   local out_log="$3"
   local cert_file="$4"
@@ -286,7 +286,7 @@ validate_one() {
     info "TAL URI から Trust Anchor 証明書を特定しました"
     info "TAL URI（${ta_label}） : ${uri}"
   else
-    warn "TAL URI からの特定に失敗したため、キャッシュパスの一致で選定しました"
+    warn "TAL URI からの特定に失敗したため、キャッシュパスの一致で特定しました"
   fi
   info "キャッシュを使用してrpki-client を実行します"
 

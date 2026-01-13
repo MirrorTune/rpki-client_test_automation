@@ -42,12 +42,12 @@ fi
 
 rm -f "${NTP_LOG_FILE}" 2>/dev/null || true
 
-info "許容同期先: ${EXPECTED_NTP_SERVERS}"
-info "許容abs(offset): ${MAX_NTP_ABS_OFFSET_SEC} sec"
+info "同期先: ${EXPECTED_NTP_SERVERS}"
+info "許容offset: ${MAX_NTP_ABS_OFFSET_SEC} sec"
 info "タイムアウト: ${NTP_TIMEOUT_SEC} sec"
 info "ログファイル: ${NTP_LOG_FILE}"
 
-warn "強制同期を実行します（ホスト時刻が変わる可能性があります）"
+warn "NTPによる時刻同期を実行します"
 
 SELECTED=""
 for s in ${EXPECTED_NTP_SERVERS}; do
@@ -84,10 +84,10 @@ printf '%s\n' "===== step ${SELECTED} =====" >> "${NTP_LOG_FILE}"
 printf '%s\n' "${OUT_SYNC}" >> "${NTP_LOG_FILE}"
 
 if [ "${RC_SYNC}" -ne 0 ]; then
-  fail "強制同期に失敗しました（詳細: ${NTP_LOG_FILE}）"
+  fail "時刻同期に失敗しました（詳細: ${NTP_LOG_FILE}）"
 fi
 
-pass "強制同期が完了しました"
+pass "時刻同期が完了しました"
 
 set +e
 OUT_VERIFY="$(timeout "${NTP_TIMEOUT_SEC}" ntpdate -q "${SELECTED}" 2>&1)"
@@ -102,17 +102,17 @@ fi
 
 OFFSET="$(printf '%s\n' "${OUT_VERIFY}" | grep -E 'offset' | get_offset_from_ntpdate_output || true)"
 if [ -z "${OFFSET}" ]; then
-  fail "同期後のoffset取得に失敗しました（詳細: ${NTP_LOG_FILE}）"
+  fail "同期後のoffsetの取得に失敗しました（詳細: ${NTP_LOG_FILE}）"
 fi
 
 ABS="$(awk -v o="${OFFSET}" 'BEGIN{ if(o<0) o=-o; printf "%.6f", o }')"
 
-info "同期後abs(offset): ${ABS} sec"
+info "同期後offset: ${ABS} sec"
 
 if awk -v a="${ABS}" -v t="${MAX_NTP_ABS_OFFSET_SEC}" 'BEGIN{exit !(a <= t)}'; then
-  pass "NTPによる時刻同期が正常に行えました（abs(offset)が閾値以内）"
+  pass "時刻同期が正常に実行できました"
 else
-  fail "時刻同期が正常に行えていない可能性があります（abs(offset)が閾値超過）"
+  fail "時刻同期が正常に実行できていない可能性があります"
 fi
 
 pass "テスト完了（2.1-8 NTPによる時刻同期の確認）"

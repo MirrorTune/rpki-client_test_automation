@@ -75,7 +75,6 @@ looks_cache_missing() {
 warmup_online_once() {
   local warmup_log="${ART_DIR}/warmup_online.log"
   info "キャッシュ生成のため rpki-client を実行します（timeout=${WARMUP_TIMEOUT}s）"
-  info "warmupログ: ${warmup_log}"
 
   set +e
   "${RPKI_CLIENT_BIN}" -v \
@@ -86,29 +85,24 @@ warmup_online_once() {
   rc=$?
   set -e
 
-  if [ "${rc}" -eq 0 ]; then
-    pass "オンライン warmup が完了しました（rc=0）"
-  else
-    warn "オンライン warmup が非0で終了しました（rc=${rc}）。ただしキャッシュが 補完されている可能性があるため継続します。"
-  fi
 }
 
 total="$(count_roa_total)"
 if [ "${total}" -eq 0 ]; then
-  warn "キャッシュ配下に .roa が見つかりませんでした: ${RPKI_CACHE_DIR}（warmup で取得を試みます）"
+  warn "キャッシュ配下に .roa が見つかりませんでした: ${RPKI_CACHE_DIR}"
   warmup_online_once
   total="$(count_roa_total)"
 fi
 
 if [ "${total}" -eq 0 ]; then
-  fail "キャッシュ配下に .roa が見つかりませんでした: ${RPKI_CACHE_DIR}（warmup 後も 0 件）"
+  fail "キャッシュ配下に .roa が見つかりませんでした: ${RPKI_CACHE_DIR}"
 fi
 
 pass "キャッシュ配下の .roa を確認しました（件数=${total} / dir=${RPKI_CACHE_DIR}）"
 
 ROA_LIST="$(collect_roa_list 5000)"
 ROA_LIST_COUNT="$(echo "${ROA_LIST}" | sed '/^\s*$/d' | wc -l | tr -d ' ')"
-info "検証候補（最大5000件から先頭${MAX_ATTEMPTS}件を試行）: list_count=${ROA_LIST_COUNT}"
+info "検証候補（${MAX_ATTEMPTS}件を試行）: list_count=${ROA_LIST_COUNT}"
 
 warmed=0
 
@@ -121,7 +115,7 @@ for i in $(seq 1 "${MAX_ATTEMPTS}"); do
   attempt_log="${ART_DIR}/attempt_$(printf '%02d' "${i}").log"
 
   info "検証対象（ROA）: ${roa}"
-  info "rpki-client を -f で検証します（短時間・キャッシュ利用）"
+  info "rpki-client を -f で検証します"
   info "試行 ${i}/${MAX_ATTEMPTS} ログ: ${attempt_log}"
 
   set +e
@@ -140,9 +134,9 @@ for i in $(seq 1 "${MAX_ATTEMPTS}"); do
 
   vline="$(grep -E 'Validation:' "${attempt_log}" | head -n 1 || true)"
   if [ -n "${vline}" ]; then
-    warn "ROA署名検証が成功ではありません: ${vline}"
+    warn "ROA署名検証に失敗しました: ${vline}"
   else
-    warn "ROA署名検証が成功ではありません（Validation行なし）"
+    warn "ROA署名検証に失敗しました（Validation行なし）"
   fi
 
   if [ "${warmed}" -eq 0 ] && looks_cache_missing "${attempt_log}"; then
@@ -150,10 +144,10 @@ for i in $(seq 1 "${MAX_ATTEMPTS}"); do
     warmup_online_once
     ROA_LIST="$(collect_roa_list 5000)"
     ROA_LIST_COUNT="$(echo "${ROA_LIST}" | sed '/^\s*$/d' | wc -l | tr -d ' ')"
-    info "warmup後：検証候補を再取得しました（list_count=${ROA_LIST_COUNT}）"
+    info "検証候補を再取得しました（list_count=${ROA_LIST_COUNT}）"
   fi
 done
 
-fail "ROA署名検証の成功を示す 'Validation: OK' が見つかりませんでした。成果物を 確認してください: ${ART_DIR}"
+fail "ROA署名検証の成功を示す 'Validation: OK' が見つかりませんでした。ログを確認してください: ${ART_DIR}"
 
 

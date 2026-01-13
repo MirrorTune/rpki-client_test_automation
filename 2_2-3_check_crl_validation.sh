@@ -84,8 +84,7 @@ looks_cache_missing() {
 
 warmup_online_once() {
   local warmup_log="${ART_DIR}/warmup_online.log"
-  info "キャッシュ補完のため rpki-client をオンラインで 1 回実行します（timeout=${WARMUP_TIMEOUT}s）"
-  info "warmupログ: ${warmup_log}"
+  info "キャッシュ補完のため rpki-client を実行します（timeout=${WARMUP_TIMEOUT}s）"
 
   set +e
   "${RPKI_CLIENT_BIN}" -v \
@@ -97,28 +96,28 @@ warmup_online_once() {
   set -e
 
   if [ "${rc}" -eq 0 ]; then
-    pass "オンライン warmup が完了しました（rc=0）"
+    pass "rpki-client の実行が完了しました（rc=0）"
   else
-    warn "オンライン warmup が非0で終了しました（rc=${rc}）。ただしキャッシュが 補完されている可能性があるため継続します。"
+    warn "rpki-client が0でないコードで終了しました（rc=${rc}）"
   fi
 }
 
 total="$(count_crl_total)"
 if [ "${total}" -eq 0 ]; then
-  warn "キャッシュ配下に .crl が見つかりませんでした: ${RPKI_CACHE_DIR}（warmup で取得を試みます）"
+  warn "キャッシュ配下に .crl が見つかりませんでした: ${RPKI_CACHE_DIR}"
   warmup_online_once
   total="$(count_crl_total)"
 fi
 
 if [ "${total}" -eq 0 ]; then
-  fail "キャッシュ配下に .crl が見つかりませんでした: ${RPKI_CACHE_DIR}（warmup 後も 0 件）"
+  fail "キャッシュ配下に .crl が見つかりませんでした: ${RPKI_CACHE_DIR}"
 fi
 
 pass "キャッシュ配下の .crl を確認しました（件数=${total} / dir=${RPKI_CACHE_DIR}）"
 
 CRL_LIST="$(collect_crl_list 5000)"
 CRL_LIST_COUNT="$(echo "${CRL_LIST}" | sed '/^\s*$/d' | wc -l | tr -d ' ')"
-info "検証候補（最大5000件から先頭${MAX_ATTEMPTS}件を試行）: list_count=${CRL_LIST_COUNT}"
+info "検証候補（${MAX_ATTEMPTS}件を試行）: list_count=${CRL_LIST_COUNT}"
 
 warmed=0
 
@@ -131,7 +130,7 @@ for i in $(seq 1 "${MAX_ATTEMPTS}"); do
   attempt_log="${ART_DIR}/attempt_$(printf '%02d' "${i}").log"
 
   info "検証対象（CRL）: ${crl}"
-  info "rpki-client を -f で検証します（短時間・キャッシュ利用）"
+  info "rpki-client を -f で検証します"
   info "試行 ${i}/${MAX_ATTEMPTS} ログ: ${attempt_log}"
 
   set +e
@@ -143,22 +142,22 @@ for i in $(seq 1 "${MAX_ATTEMPTS}"); do
   set -e
 
   if validation_ok "${attempt_log}"; then
-    pass "CRL確認に成功しました: Validation: OK"
+    pass "CRLの確認に成功しました: Validation: OK"
     pass "テスト完了（2.2-3 CRLの確認）"
     exit 0
   fi
 
   if validation_na "${attempt_log}"; then
-    pass "CRL確認に成功しました: Validation: N/A"
+    pass "CRLの確認に成功しました: Validation: N/A"
     pass "テスト完了（2.2-3 CRLの確認）"
     exit 0
   fi
 
   vline="$(first_validation_line "${attempt_log}")"
   if [ -n "${vline}" ]; then
-    warn "CRL検証が成功ではありません: ${vline}"
+    warn "CRLの検証に失敗しました: ${vline}"
   else
-    warn "CRL検証が成功ではありません（Validation行なし）"
+    warn "CRL検証に失敗しました（Validation行なし）"
   fi
 
   if [ "${warmed}" -eq 0 ] && looks_cache_missing "${attempt_log}"; then
@@ -166,10 +165,10 @@ for i in $(seq 1 "${MAX_ATTEMPTS}"); do
     warmup_online_once
     CRL_LIST="$(collect_crl_list 5000)"
     CRL_LIST_COUNT="$(echo "${CRL_LIST}" | sed '/^\s*$/d' | wc -l | tr -d ' ')"
-    info "warmup後：検証候補を再取得しました（list_count=${CRL_LIST_COUNT}）"
+    info "検証候補を再取得しました（list_count=${CRL_LIST_COUNT}）"
   fi
 done
 
-fail "CRL確認の成功を示す 'Validation: OK' または 'Validation: N/A' が見つかりませんでした。成果物を確認してください: ${ART_DIR}"
+fail "CRL確認の成功を示す 'Validation: OK' または 'Validation: N/A' が見つかりませんでした。ログを確認してください: ${ART_DIR}"
 
 

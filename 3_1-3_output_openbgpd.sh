@@ -30,7 +30,7 @@ fi
 info "キャッシュディレクトリ: ${RPKI_CACHE_DIR}"
 info "出力ディレクトリ     : ${RPKI_OUT_DIR}"
 info "ログファイル         : ${RPKI_LOG_FILE}"
-info "OpenBGPD成果物ファイル: ${RPKI_OPENBGPD_OUT_FILE}"
+info "OpenBGPD ファイル: ${RPKI_OPENBGPD_OUT_FILE}"
 
 cache_hint=0
 if find "${RPKI_CACHE_DIR}" -type f -print -quit 2>/dev/null | grep -q .; then
@@ -38,9 +38,9 @@ if find "${RPKI_CACHE_DIR}" -type f -print -quit 2>/dev/null | grep -q .; then
 fi
 
 if [ "${cache_hint}" -ne 0 ]; then
-  pass "既存キャッシュを検出しました（ダウンロード無しで進む可能性があります）"
+  pass "キャッシュを検出しました"
 else
-  warn "既存キャッシュが見つかりませんでした（初回取得が発生するため時間がかかります）"
+  warn "キャッシュが見つかりませんでした"
 fi
 
 rm -f "${RPKI_LOG_FILE}" 2>/dev/null || true
@@ -62,27 +62,27 @@ fi
 pass "rpki-client の実行が正常に完了しました（終了コード0）"
 
 if grep -qi 'not all files processed' "${RPKI_LOG_FILE}"; then
-  fail "rpki-client が 'not all files processed' を出力しました。処理が完遂していません。ログ: ${RPKI_LOG_FILE}"
+  fail "rpki-client が 'not all files processed' を出力しました。ログ: ${RPKI_LOG_FILE}"
 fi
 
 if [ ! -s "${RPKI_OPENBGPD_OUT_FILE}" ]; then
-  fail "OpenBGPD成果物が見つからない、または空です: ${RPKI_OPENBGPD_OUT_FILE}（ログ: ${RPKI_LOG_FILE}）"
+  fail "OpenBGPD ファイルが見つからないか、または空です: ${RPKI_OPENBGPD_OUT_FILE}（ログ: ${RPKI_LOG_FILE}）"
 fi
-pass "OpenBGPD成果物ファイルを確認しました: ${RPKI_OPENBGPD_OUT_FILE}"
+pass "OpenBGPD ファイルを確認しました: ${RPKI_OPENBGPD_OUT_FILE}"
 
 first_line="$(awk 'NF && $1 !~ /^#/ {print; exit}' "${RPKI_OPENBGPD_OUT_FILE}" 2>/dev/null || true)"
 last_line="$(awk 'NF && $1 !~ /^#/ {line=$0} END{print line}' "${RPKI_OPENBGPD_OUT_FILE}" 2>/dev/null || true)"
 
 if printf '%s\n' "${first_line}" | grep -Eq '^(roa-set|aspa-set)[[:space:]]*\{$'; then
-  pass "OpenBGPDの先頭ブロック開始行を確認しました: ${first_line}"
+  pass "OpenBGPD の先頭ブロック開始行を確認しました: ${first_line}"
 else
-  fail "OpenBGPDの先頭行が想定外です（roa-set { / aspa-set { を期待）: ${first_line}"
+  fail "OpenBGPD の先頭行が想定外です（roa-set { / aspa-set { を期待）: ${first_line}"
 fi
 
 if [ "${last_line}" = "}" ]; then
-  pass "OpenBGPDの末尾行（ブロック終端）を確認しました: ${last_line}"
+  pass "OpenBGPD の末尾行（ブロック終端）を確認しました: ${last_line}"
 else
-  fail "OpenBGPDの末尾行が想定外です（'}' を期待）: ${last_line}"
+  fail "OpenBGPD の末尾行が想定外です（'}' を期待）: ${last_line}"
 fi
 
 brace_ok="$(
@@ -107,7 +107,7 @@ brace_ok="$(
 if [ "${brace_ok}" = "1" ]; then
   pass "ブレース整合性（{ }）を確認しました"
 else
-  fail "ブレース整合性（{ }）が崩れています（欠落/過剰、または順序不正）"
+  fail "ブレース整合性（{ }）が崩れています"
 fi
 
 has_roa_block=0
@@ -126,16 +126,16 @@ if [ "${has_roa_block}" -eq 1 ]; then
   if grep -Eq "${roa_line_re}" "${RPKI_OPENBGPD_OUT_FILE}"; then
     pass "roa-set 内のエントリ行（CIDR/maxlen/source-as）を確認しました"
   else
-    fail "roa-set があるのに、エントリ行（CIDR maxlen N source-as ASN）が見つかりません"
+    fail "roa-set は存在していますが、エントリ行（CIDR maxlen N source-as ASN）が見つかりません"
   fi
 elif [ "${has_aspa_block}" -eq 1 ]; then
   if grep -Eq 'provider-as' "${RPKI_OPENBGPD_OUT_FILE}"; then
     pass "aspa-set 内の provider-as を確認しました"
   else
-    warn "aspa-set はありますが provider-as が見つかりません（rpki-clientの出力仕様差の可能性あり）"
+    warn "aspa-set は存在していますが provider-as が見つかりません"
   fi
 else
-  fail "roa-set / aspa-set の開始行が見つかりません"
+  fail "roa-set / aspa-set 行が見つかりません"
 fi
 
 pass "テスト完了（3.1-3 OpenBGPD形式での出力テスト）"

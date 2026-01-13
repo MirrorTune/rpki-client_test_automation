@@ -22,9 +22,9 @@ else
 fi
 
 if command -v python3 >/dev/null 2>&1; then
-  pass "python3 を確認しました（CIDR/CSV検証に使用）"
+  pass "python3 を確認しました"
 else
-  fail "python3 が見つかりません（CIDR/CSV検証に必要です）"
+  fail "python3 が見つかりません"
 fi
 
 mkdir -p "${RPKI_CACHE_DIR}" "${RPKI_OUT_DIR}"
@@ -43,17 +43,17 @@ if find "${RPKI_CACHE_DIR}" -type f -print -quit 2>/dev/null | grep -q .; then
   cache_hint=1
 fi
 if [ "${cache_hint}" -ne 0 ]; then
-  pass "既存キャッシュを検出しました（ダウンロード無しで進む可能性があります）"
+  pass "キャッシュを検出しました"
 else
-  warn "既存キャッシュが見つかりませんでした（初回取得が発生するため時間がかかります）"
+  warn "キャッシュが見つかりませんでした"
 fi
 
 rm -f "${RPKI_LOG_FILE}" 2>/dev/null || true
 
 if [ -s "${RPKI_CSV_FILE}" ]; then
-  pass "既存のCSV成果物を検出しました（rpki-client の再実行をスキップします）: ${RPKI_CSV_FILE}"
+  pass "既存の CSV ファイルを検出しました: ${RPKI_CSV_FILE}"
 else
-  fail "CSV成果物が見つかりません（先に3.1-1を成功させてください）: ${RPKI_CSV_FILE}"
+  fail "CSV ファイルが見つかりません。3.1-1のスクリプトを実行し、CSV ファイルを生成してください。: ${RPKI_CSV_FILE}"
 fi
 
 EXPECTED_1_PREFIX="${EXPECTED_1_PREFIX:-1.1.1.0/24}"
@@ -61,8 +61,8 @@ EXPECTED_1_ASN="${EXPECTED_1_ASN:-13335}"
 EXPECTED_2_PREFIX="${EXPECTED_2_PREFIX:-8.8.8.0/24}"
 EXPECTED_2_ASN="${EXPECTED_2_ASN:-15169}"
 
-info "既知ROA候補1: ${EXPECTED_1_PREFIX} AS${EXPECTED_1_ASN#AS}"
-info "既知ROA候補2: ${EXPECTED_2_PREFIX} AS${EXPECTED_2_ASN#AS}"
+info "既知のROA候補1: ${EXPECTED_1_PREFIX} AS${EXPECTED_1_ASN#AS}"
+info "既知のROA候補2: ${EXPECTED_2_PREFIX} AS${EXPECTED_2_ASN#AS}"
 
 set +e
 python3 - "${RPKI_CSV_FILE}" "${EXPECTED_1_PREFIX}" "${EXPECTED_1_ASN}" "${EXPECTED_2_PREFIX}" "${EXPECTED_2_ASN}" <<'PY'
@@ -132,8 +132,8 @@ PYC=$?
 set -e
 
 if [ "${PYC}" -ne 0 ]; then
-  warn "既知ROA候補の照合に失敗しました（候補がCSVにない/ASN不一致/範囲不正の可能性）"
-  fail "既知ROA候補のいずれも条件を満たしませんでした（CSVに存在しない/ASN不一致/範囲不正）"
+  warn "既知の ROA 候補の照合に失敗しました"
+  fail "既知の ROA 候補がいずれも条件を満たしませんでした"
 fi
 
 pass "テスト完了（3.1-4 プレフィックス情報の正確性確認）"

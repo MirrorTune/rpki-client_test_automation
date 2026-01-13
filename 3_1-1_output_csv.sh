@@ -36,9 +36,9 @@ if find "${RPKI_CACHE_DIR}" -type f -print -quit 2>/dev/null | grep -q .; then
   cache_hint=1
 fi
 if [ "${cache_hint}" -ne 0 ]; then
-  pass "既存キャッシュを検出しました（ダウンロード無しで進む可能性があります）"
+  pass "キャッシュを検出しました"
 else
-  warn "既存キャッシュが見つかりませんでした（初回取得が発生するため時間がかかります）"
+  warn "キャッシュが見つかりませんでした"
 fi
 
 rm -f "${RPKI_LOG_FILE}" 2>/dev/null || true
@@ -76,16 +76,16 @@ if [ -z "${found}" ]; then
 fi
 
 if [ -z "${found}" ]; then
-  fail "CSV成果物ファイルが見つかりませんでした（出力ディレクトリ内に非空ファイルがありません）: ${RPKI_OUT_DIR}"
+  fail "CSV ファイルが見つかりませんでした（出力ディレクトリ内に内容が空でないファイルがありません）: ${RPKI_OUT_DIR}"
 fi
 
-info "検出したCSV成果物ファイル: ${found}"
+info "検出した CSV ファイル: ${found}"
 
 line1="$(head -n 1 "${found}" 2>/dev/null || true)"
 if echo "${line1}" | grep -q ','; then
-  pass "CSV形式の出力を確認しました（先頭行にカンマ区切り）"
+  pass "CSV 形式の出力を確認しました（先頭行にカンマ区切り）"
 else
-  fail "検出した成果物がCSVに見えません（先頭行がカンマ区切りでない）: ${line1}"
+  fail "検出したファイルが CSV 形式であると判断できません（先頭行がカンマ区切りでない）: ${line1}"
 fi
 
 pass "テスト完了（3.1-1 CSV形式での出力テスト）"

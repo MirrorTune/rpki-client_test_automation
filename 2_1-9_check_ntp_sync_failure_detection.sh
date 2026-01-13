@@ -54,7 +54,7 @@ fi
 
 rm -f "${NTP_LOG_FILE}" 2>/dev/null || true
 
-info "許容同期先: ${EXPECTED_NTP_SERVERS}"
+info "同期先: ${EXPECTED_NTP_SERVERS}"
 info "タイムアウト: ${NTP_TIMEOUT_SEC} sec"
 info "ログファイル: ${NTP_LOG_FILE}"
 
@@ -80,15 +80,15 @@ for s in ${EXPECTED_NTP_SERVERS}; do
 done
 
 if [ -z "${SELECTED}" ]; then
-  fail "事前疎通に失敗しました（詳細: ${NTP_LOG_FILE}）"
+  fail "事前の疎通確認に失敗しました（詳細: ${NTP_LOG_FILE}）"
 fi
 
 info "選択した同期先: ${SELECTED}"
-pass "事前疎通を確認しました"
+pass "事前の疎通確認に成功しました"
 
 warn "NTP(UDP/123) を遮断します"
 iptables -I OUTPUT -p udp --dport 123 -j DROP
-pass "遮断ルールを適用しました"
+pass "遮断に成功しました"
 
 set +e
 OUT_BLOCKED="$(timeout "${NTP_TIMEOUT_SEC}" ntpdate -b "${SELECTED}" 2>&1)"
@@ -102,7 +102,7 @@ printf '%s\n' "RC=${RC_BLOCKED}" >> "${NTP_LOG_FILE}"
 info "遮断時の終了コード: ${RC_BLOCKED}"
 
 if [ "${RC_BLOCKED}" -eq 0 ]; then
-  fail "遮断中にもかかわらず強制同期が成功しました（遮断が効いていない可能性があります）"
+  fail "遮断中に時刻同期が成功しました"
 fi
 
 FAIL_SIG=0

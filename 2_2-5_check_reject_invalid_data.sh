@@ -47,7 +47,7 @@ if [ -d "${TAL_DIR}" ]; then
 fi
 
 if [ "${#TAL_FILES[@]}" -eq 0 ]; then
-  warn "TAL が見つかりませんでした（dir=${TAL_DIR}）。rpki-client のデフォルト探索に任せます。"
+  warn "TAL が見つかりませんでした（dir=${TAL_DIR}）"
 else
   info "検出したTAL: $(basename -a "${TAL_FILES[@]}" | tr '\n' ' ' | sed 's/ *$//')"
 fi
@@ -60,7 +60,7 @@ done
 mkdir -p "${RPKI_CACHE_DIR}" || true
 
 IFS=',' read -r -a TYPE_ORDER <<< "${PREFERRED_TYPES}"
-info "対象拡張子（優先順）: ${PREFERRED_TYPES}"
+info "対象拡張子: ${PREFERRED_TYPES}"
 
 have_any_target=0
 for ext in "${TYPE_ORDER[@]}"; do
@@ -73,7 +73,7 @@ done
 
 if [ "${have_any_target}" -eq 0 ]; then
   warn "キャッシュ内に対象拡張子（${PREFERRED_TYPES}）が見つかりませんでした: ${RPKI_CACHE_DIR}"
-  info "このテスト項目内で rpki-client を実行してキャッシュ取得を試みます（warmup）"
+  info "rpki-client を実行してキャッシュ取得を試みます（warmup）"
 
   WARMUP_LOG="${ARTIFACT_DIR}/warmup.log"
   : > "${WARMUP_LOG}"
@@ -84,9 +84,9 @@ if [ "${have_any_target}" -eq 0 ]; then
   set -e
 
   if [ $rc -ne 0 ]; then
-    warn "warmup 実行が非0で終了しました（rc=${rc}）。ただしキャッシュが作られている可能性があるため継続します。ログ: ${WARMUP_LOG}"
+    warn "rpki-client が0でないコードで終了しました（rc=${rc}）ログ: ${WARMUP_LOG}"
   else
-    info "warmup を実行しました。ログ: ${WARMUP_LOG}"
+    info "rpki-client の実行が完了しました。ログ: ${WARMUP_LOG}"
   fi
 fi
 
@@ -103,7 +103,7 @@ for ext in "${TYPE_ORDER[@]}"; do
     continue
   fi
 
-  info "候補探索（.${ext}）: count=${#LIST[@]}（最大${MAX_CANDIDATES}件から先頭${MAX_ATTEMPTS}件を試行）"
+  info "候補探索（.${ext}）: count=${#LIST[@]}（${MAX_ATTEMPTS}件を試行）"
 
   for i in $(seq 1 "${MAX_ATTEMPTS}"); do
     idx=$((i - 1))
@@ -113,7 +113,7 @@ for ext in "${TYPE_ORDER[@]}"; do
     out="${ARTIFACT_DIR}/baseline_attempt_$(printf '%02d' "${i}")_${ext}.log"
 
     info "正常サンプル探索（.${ext}）: ${target}"
-    info "rpki-client を -f で検証します（短時間・キャッシュ利用）"
+    info "rpki-client を -f で検証します"
     info "試行 ${i}/${MAX_ATTEMPTS} ログ: ${out}"
 
     set +e
@@ -133,9 +133,9 @@ for ext in "${TYPE_ORDER[@]}"; do
     [ -z "${vline}" ] && vline="Validation: (not found)"
 
     if [ $rc -ne 0 ]; then
-      warn "正常サンプルには不適（rc=${rc}）: ${vline}"
+      warn "正常サンプルとして不適（rc=${rc}）: ${vline}"
     else
-      warn "正常サンプルには不適: ${vline}"
+      warn "正常サンプルとして不適: ${vline}"
     fi
   done
 
@@ -143,7 +143,7 @@ for ext in "${TYPE_ORDER[@]}"; do
 done
 
 if [ -z "${selected}" ]; then
-  fail "正常サンプル（Validation: OK）が見つかりませんでした。成果物を確認してください: ${ARTIFACT_DIR}"
+  fail "正常サンプル（Validation: OK）が見つかりませんでした。ログを確認してください: ${ARTIFACT_DIR}"
 fi
 
 pass "正常サンプルを特定しました: ${selected}（type=.${selected_ext} / ${selected_reason}）"
@@ -166,7 +166,7 @@ offset=$(( size / 2 ))
 
 cur_hex="$(dd if="${BAD_COPY}" bs=1 skip="${offset}" count=1 2>/dev/null | od -An -tx1 | tr -d ' \n' || true)"
 if [ -z "${cur_hex}" ]; then
-  fail "改ざん対象バイトが読めませんでした（offset=${offset}）: ${BAD_COPY}"
+  fail "改ざん対象バイトが読み込めませんでした（offset=${offset}）: ${BAD_COPY}"
 fi
 
 if [ "${cur_hex}" = "00" ]; then
@@ -194,16 +194,16 @@ BAD_RC=$?
 set -e
 
 if grep -qiE '^Validation:[[:space:]]*OK' "${BAD_LOG}"; then
-  fail "不正サンプルが Validation: OK になりました（拒否できていません）。ログ: ${BAD_LOG}"
+  fail "不正サンプルが Validation: OK になりました。不正サンプルを拒否できていません。ログ: ${BAD_LOG}"
 fi
 
 vline="$(grep -iE '^Validation:' "${BAD_LOG}" | head -n 1 || true)"
 [ -z "${vline}" ] && vline="Validation: (not found)"
 
 if [ "${BAD_RC}" -ne 0 ]; then
-  pass "不正データを拒否できました（rpki-client rc=${BAD_RC} / ${vline}）"
+  pass "不正サンプルを拒否できました（rpki-client rc=${BAD_RC} / ${vline}）"
 else
-  pass "不正データを拒否できました（${vline}）"
+  pass "不正サンプルを拒否できました（${vline}）"
 fi
 
 pass "テスト完了（2.2-5 不正なデータの拒否テスト）"

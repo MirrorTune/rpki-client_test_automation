@@ -1,8 +1,27 @@
+# logs / artifacts
 *.log
 logs/
 *.out
 *.tmp
 *.swp
 *~
+
+# rpki-client caches / outputs (common names)
 rrdp-cache/
 rrdp-out/
+retry-cache/
+retry-out/
+csv-out/
+openbgpd-out/
+bird-out/
+json-out/
+slurm-out/
+determinism-out/
+*_cache/
+*_out/
+out/
+work/
+runs/
+
+# docker leftovers (just in case)
+*.tar
